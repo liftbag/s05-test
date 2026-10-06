@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>S05 WebView Inspector</title>
+<title>S05 WebView Inspector v2</title>
 
 <style>
 body {
@@ -15,14 +15,16 @@ body {
   line-height: 1.45;
 }
 
-h1 {
+h1, h2 {
   font-family: sans-serif;
+}
+
+h1 {
   font-size: 36px;
   margin-bottom: 5px;
 }
 
 h2 {
-  font-family: sans-serif;
   font-size: 25px;
   margin-top: 40px;
   border-bottom: 1px solid #666;
@@ -44,18 +46,6 @@ button {
   font-size: 20px;
 }
 
-.good {
-  color: #66ff88;
-}
-
-.bad {
-  color: #ff7777;
-}
-
-.warn {
-  color: #ffd966;
-}
-
 .box {
   background: #1b1b1b;
   border: 1px solid #555;
@@ -66,21 +56,9 @@ button {
   overflow-wrap: anywhere;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-td {
-  border-bottom: 1px solid #444;
-  padding: 8px;
-  vertical-align: top;
-}
-
-td:first-child {
-  width: 32%;
-  color: #bbbbbb;
-}
+.good { color: #66ff88; }
+.bad  { color: #ff7777; }
+.warn { color: #ffd966; }
 
 small {
   color: #999;
@@ -90,282 +68,241 @@ small {
 
 <body>
 
-<h1>S05 WebView Inspector</h1>
+<h1>S05 WebView Inspector v2</h1>
 
 <p>
-Read-only diagnostic page for Deepal S05 / Tencent Way WebView.
-No Android or vehicle settings are changed.
+Read-only diagnostics for Deepal S05 / Tencent Way.
+No detected native functions are executed.
 </p>
 
-<button onclick="runAll()">Run / Refresh Tests</button>
+<button onclick="runAll()">Run / Refresh</button>
 <button onclick="copyReport()">Copy Full Report</button>
 
 <div id="copyStatus"></div>
 
 
-<h2>1. Browser / Platform</h2>
-<div id="basic" class="box">Running...</div>
+<h2>1. Environment</h2>
+<div id="environment" class="box">Running...</div>
 
 
-<h2>2. Important APIs</h2>
-<div id="apis" class="box">Running...</div>
-
-
-<h2>3. DRM / EME</h2>
+<h2>2. DRM / Widevine</h2>
 <div id="drm" class="box">Running...</div>
 
 
-<h2>4. Possible Native / Tencent Bridges</h2>
+<h2>3. Suspicious Global Objects</h2>
+<div id="suspicious" class="box">Running...</div>
+
+
+<h2>4. Function / Bridge Introspection</h2>
 
 <p>
-This section looks for unusual JavaScript objects exposed by the host
-application to the WebView.
+Functions are inspected only. They are NOT called.
 </p>
 
-<div id="bridges" class="box">Running...</div>
+<div id="introspection" class="box">Running...</div>
 
 
-<h2>5. Window Properties</h2>
+<h2>5. Delayed Injection Monitor</h2>
 
 <p>
-Non-standard or potentially interesting properties found on
-<code>window</code>.
+Checks whether new interesting global objects appear after page load.
 </p>
 
-<div id="windowprops" class="box">Running...</div>
+<div id="delayed" class="box">Waiting...</div>
 
 
-<h2>6. Navigator Properties</h2>
-<div id="navigatorprops" class="box">Running...</div>
-
-
-<h2>7. Media / Security Context</h2>
-<div id="media" class="box">Running...</div>
-
-
-<h2>8. Full Diagnostic Report</h2>
+<h2>6. Full Report</h2>
 <div id="fullreport" class="box">Running...</div>
-
 
 <hr>
 
-<small>S05 WebView Inspector v1.0</small>
+<small>S05 WebView Inspector v2.0</small>
 
 
 <script>
 
 let finalReport = "";
+let initialGlobals = new Set();
 
-function yesno(value) {
-  return value ? "YES" : "NO";
-}
 
-function safeValue(value) {
+const keywords = [
+  "android",
+  "native",
+  "bridge",
+  "tencent",
+  "deepal",
+  "changan",
+  "vehicle",
+  "car",
+  "webview",
+  "host",
+  "shell",
+  "qcar",
+  "qq",
+  "wx",
+  "weixin",
+  "jsapi",
+  "javascriptinterface"
+];
+
+
+const targets = [
+  "CSSNumericArray",
+  "GetNativeBuffer",
+  "GetNativeBufferId",
+  "SetNativeBuffer",
+  "bridgeInfo"
+];
+
+
+function safeString(value) {
+
   try {
-    if (typeof value === "function") {
-      return "[function]";
-    }
 
-    if (typeof value === "object" && value !== null) {
-      return Object.prototype.toString.call(value);
-    }
+    if (value === null)
+      return "null";
+
+    if (typeof value === "undefined")
+      return "undefined";
 
     return String(value);
+
   } catch (e) {
-    return "[unreadable]";
+
+    return "[unreadable: " + e.name + "]";
+
   }
 }
 
 
-function basicInfo() {
+function getEnvironment() {
 
-  const lines = [];
+  const out = [];
 
-  lines.push("userAgent: " + navigator.userAgent);
-  lines.push("platform: " + navigator.platform);
-  lines.push("vendor: " + navigator.vendor);
-  lines.push("language: " + navigator.language);
-  lines.push("languages: " + navigator.languages);
-  lines.push("hardwareConcurrency: " + navigator.hardwareConcurrency);
-  lines.push("deviceMemory: " + navigator.deviceMemory);
-  lines.push("maxTouchPoints: " + navigator.maxTouchPoints);
-  lines.push("cookieEnabled: " + navigator.cookieEnabled);
-  lines.push("onLine: " + navigator.onLine);
+  out.push("userAgent: " + navigator.userAgent);
+  out.push("platform: " + navigator.platform);
+  out.push("vendor: " + navigator.vendor);
+  out.push("language: " + navigator.language);
 
-  lines.push("");
-  lines.push("screen: " +
-    screen.width + " x " + screen.height);
-
-  lines.push("viewport: " +
-    window.innerWidth + " x " + window.innerHeight);
-
-  lines.push("devicePixelRatio: " +
-    window.devicePixelRatio);
-
-  lines.push("");
-  lines.push("location.protocol: " + location.protocol);
-  lines.push("location.origin: " + location.origin);
-  lines.push("isSecureContext: " + window.isSecureContext);
-
-  return lines.join("\n");
-}
-
-
-function apiInfo() {
-
-  const tests = {
-
-    "MediaSource":
-      typeof window.MediaSource !== "undefined",
-
-    "Encrypted Media Extensions":
-      typeof navigator.requestMediaKeySystemAccess === "function",
-
-    "MediaKeys":
-      typeof window.MediaKeys !== "undefined",
-
-    "MediaKeySession":
-      typeof window.MediaKeySession !== "undefined",
-
-    "MediaCapabilities":
-      typeof navigator.mediaCapabilities !== "undefined",
-
-    "WebCodecs VideoDecoder":
-      typeof window.VideoDecoder !== "undefined",
-
-    "WebCodecs AudioDecoder":
-      typeof window.AudioDecoder !== "undefined",
-
-    "WebAssembly":
-      typeof window.WebAssembly !== "undefined",
-
-    "WebSocket":
-      typeof window.WebSocket !== "undefined",
-
-    "WebRTC":
-      typeof window.RTCPeerConnection !== "undefined",
-
-    "ServiceWorker":
-      "serviceWorker" in navigator,
-
-    "Geolocation":
-      "geolocation" in navigator,
-
-    "Bluetooth":
-      "bluetooth" in navigator,
-
-    "USB":
-      "usb" in navigator,
-
-    "Serial":
-      "serial" in navigator,
-
-    "HID":
-      "hid" in navigator,
-
-    "Clipboard":
-      "clipboard" in navigator,
-
-    "Picture-in-Picture":
-      "pictureInPictureEnabled" in document,
-
-    "Fullscreen":
-      typeof document.documentElement.requestFullscreen === "function"
-
-  };
-
-  let out = "";
-
-  for (const key in tests) {
-    out += key + ": " + yesno(tests[key]) + "\n";
-  }
-
-  return out;
-}
-
-
-async function drmInfo() {
-
-  const lines = [];
-
-  lines.push(
-    "requestMediaKeySystemAccess: " +
-    yesno(typeof navigator.requestMediaKeySystemAccess === "function")
+  out.push(
+    "hardwareConcurrency: " +
+    navigator.hardwareConcurrency
   );
 
-  if (typeof navigator.requestMediaKeySystemAccess !== "function") {
-    return lines.join("\n");
+  out.push(
+    "deviceMemory: " +
+    navigator.deviceMemory
+  );
+
+  out.push(
+    "maxTouchPoints: " +
+    navigator.maxTouchPoints
+  );
+
+  out.push("");
+
+  out.push(
+    "screen: " +
+    screen.width + " x " + screen.height
+  );
+
+  out.push(
+    "viewport: " +
+    innerWidth + " x " + innerHeight
+  );
+
+  out.push(
+    "devicePixelRatio: " +
+    devicePixelRatio
+  );
+
+  out.push("");
+
+  out.push(
+    "secureContext: " +
+    window.isSecureContext
+  );
+
+  out.push(
+    "origin: " +
+    location.origin
+  );
+
+  out.push(
+    "EME API present: " +
+    (
+      typeof navigator.requestMediaKeySystemAccess ===
+      "function"
+    )
+  );
+
+  return out.join("\n");
+}
+
+
+async function getDRM() {
+
+  const out = [];
+
+  if (
+    typeof navigator.requestMediaKeySystemAccess !==
+    "function"
+  ) {
+
+    return "EME API NOT AVAILABLE";
+
   }
 
-  const clearConfig = [{
+
+  const basicConfig = [{
     initDataTypes: ["cenc"],
+
     videoCapabilities: [{
-      contentType: 'video/mp4; codecs="avc1.42E01E"'
+      contentType:
+        'video/mp4; codecs="avc1.42E01E"'
     }]
   }];
+
 
   try {
 
     await navigator.requestMediaKeySystemAccess(
       "org.w3.clearkey",
-      clearConfig
+      basicConfig
     );
 
-    lines.push("ClearKey: AVAILABLE");
+    out.push("ClearKey: AVAILABLE");
 
   } catch (e) {
 
-    lines.push(
-      "ClearKey: NOT AVAILABLE - " +
+    out.push(
+      "ClearKey: FAIL - " +
       e.name + ": " + e.message
     );
+
   }
 
 
-  const widevineTests = [
-
-    {
-      name: "Basic / unspecified robustness",
-      robustness: ""
-    },
-
-    {
-      name: "SW_SECURE_CRYPTO",
-      robustness: "SW_SECURE_CRYPTO"
-    },
-
-    {
-      name: "SW_SECURE_DECODE",
-      robustness: "SW_SECURE_DECODE"
-    },
-
-    {
-      name: "HW_SECURE_CRYPTO",
-      robustness: "HW_SECURE_CRYPTO"
-    },
-
-    {
-      name: "HW_SECURE_DECODE",
-      robustness: "HW_SECURE_DECODE"
-    },
-
-    {
-      name: "HW_SECURE_ALL",
-      robustness: "HW_SECURE_ALL"
-    }
-
+  const levels = [
+    "",
+    "SW_SECURE_CRYPTO",
+    "SW_SECURE_DECODE",
+    "HW_SECURE_CRYPTO",
+    "HW_SECURE_DECODE",
+    "HW_SECURE_ALL"
   ];
 
 
-  for (const test of widevineTests) {
+  for (const robustness of levels) {
 
-    const capability = {
-      contentType: 'video/mp4; codecs="avc1.42E01E"'
+    const cap = {
+      contentType:
+        'video/mp4; codecs="avc1.42E01E"'
     };
 
-    if (test.robustness) {
-      capability.robustness = test.robustness;
-    }
+    if (robustness)
+      cap.robustness = robustness;
+
 
     const config = [{
       initDataTypes: ["cenc"],
@@ -375,8 +312,12 @@ async function drmInfo() {
 
       sessionTypes: ["temporary"],
 
-      videoCapabilities: [capability]
+      videoCapabilities: [cap]
     }];
+
+
+    const label =
+      robustness || "BASIC";
 
 
     try {
@@ -387,456 +328,580 @@ async function drmInfo() {
           config
         );
 
-      lines.push(
+      out.push(
         "Widevine " +
-        test.name +
+        label +
         ": AVAILABLE"
       );
 
       try {
 
-        const cfg = access.getConfiguration();
-
-        lines.push(
-          "  configuration: " +
-          JSON.stringify(cfg)
+        out.push(
+          " configuration: " +
+          JSON.stringify(
+            access.getConfiguration()
+          )
         );
 
       } catch (e) {}
 
     } catch (e) {
 
-      lines.push(
+      out.push(
         "Widevine " +
-        test.name +
+        label +
         ": NOT AVAILABLE"
       );
 
-      lines.push(
-        "  error: " +
+      out.push(
+        " error: " +
         e.name +
         ": " +
         e.message
       );
+
     }
   }
 
-  return lines.join("\n");
+
+  return out.join("\n");
 }
 
 
-function bridgeInfo() {
+function findSuspiciousGlobals() {
 
-  const suspiciousNames = [
-    "Android",
-    "android",
-    "Native",
-    "native",
-    "NativeBridge",
-    "WebViewBridge",
-    "JSBridge",
-    "JsBridge",
-    "JavascriptInterface",
-    "Tencent",
-    "tencent",
-    "QQ",
-    "QWebChannel",
-    "webkit",
-    "Deepal",
-    "deepal",
-    "Changan",
-    "changan",
-    "Car",
-    "car",
-    "Vehicle",
-    "vehicle"
-  ];
+  const results = [];
 
-  const found = [];
-
-  for (const name of suspiciousNames) {
-
-    try {
-
-      if (name in window) {
-
-        let description =
-          name + " = " +
-          safeValue(window[name]);
-
-        try {
-
-          if (
-            typeof window[name] === "object" &&
-            window[name] !== null
-          ) {
-
-            const props =
-              Object.getOwnPropertyNames(
-                window[name]
-              );
-
-            description +=
-              "\n  properties: " +
-              props.join(", ");
-          }
-
-        } catch (e) {}
-
-        found.push(description);
-      }
-
-    } catch (e) {}
-  }
-
-
-  /*
-     Look for unusual window properties containing
-     potentially relevant words.
-  */
-
-  const keywords = [
-    "android",
-    "native",
-    "bridge",
-    "tencent",
-    "deepal",
-    "changan",
-    "vehicle",
-    "car",
-    "webview"
-  ];
+  let names = [];
 
   try {
 
-    const props =
+    names =
       Object.getOwnPropertyNames(window);
 
-    for (const prop of props) {
+  } catch (e) {
 
-      const lower =
-        prop.toLowerCase();
+    return [
+      "Unable to enumerate window."
+    ];
 
-      if (
-        keywords.some(
-          keyword =>
-            lower.includes(keyword)
-        )
-      ) {
+  }
 
-        const line =
-          prop +
-          " = " +
-          safeValue(window[prop]);
 
-        if (!found.includes(line)) {
-          found.push(line);
-        }
+  for (const name of names) {
+
+    const lower =
+      name.toLowerCase();
+
+
+    if (
+      keywords.some(
+        k => lower.includes(k)
+      )
+    ) {
+
+      let type;
+
+      try {
+
+        type =
+          typeof window[name];
+
+      } catch (e) {
+
+        type =
+          "[access denied]";
+
       }
+
+
+      results.push(
+        name +
+        "  [type=" +
+        type +
+        "]"
+      );
+
     }
+  }
+
+
+  return results.sort();
+}
+
+
+function descriptorText(name) {
+
+  try {
+
+    const d =
+      Object.getOwnPropertyDescriptor(
+        window,
+        name
+      );
+
+    if (!d)
+      return "descriptor: not found";
+
+
+    return (
+      "descriptor:\n" +
+      "  configurable: " +
+      d.configurable + "\n" +
+
+      "  enumerable: " +
+      d.enumerable + "\n" +
+
+      "  writable: " +
+      (
+        "writable" in d
+          ? d.writable
+          : "[accessor]"
+      ) + "\n" +
+
+      "  getter: " +
+      (
+        typeof d.get === "function"
+      ) + "\n" +
+
+      "  setter: " +
+      (
+        typeof d.set === "function"
+      )
+    );
+
+  } catch (e) {
+
+    return (
+      "descriptor error: " +
+      e.name +
+      ": " +
+      e.message
+    );
+
+  }
+}
+
+
+function inspectFunction(name) {
+
+  const out = [];
+
+  out.push(
+    "===== " + name + " ====="
+  );
+
+
+  if (!(name in window)) {
+
+    out.push("NOT PRESENT");
+    return out.join("\n");
+
+  }
+
+
+  let obj;
+
+  try {
+
+    obj =
+      window[name];
+
+  } catch (e) {
+
+    out.push(
+      "Cannot read object: " +
+      e.name +
+      ": " +
+      e.message
+    );
+
+    return out.join("\n");
+
+  }
+
+
+  out.push(
+    "typeof: " +
+    typeof obj
+  );
+
+
+  try {
+
+    out.push(
+      "name: " +
+      safeString(obj.name)
+    );
 
   } catch (e) {}
 
 
-  if (found.length === 0) {
+  try {
 
-    return (
-      "No obvious Android / Tencent / Deepal " +
-      "JavaScript bridge detected."
+    out.push(
+      "length / declared args: " +
+      safeString(obj.length)
     );
-  }
 
-  return found.join("\n\n");
-}
+  } catch (e) {}
 
 
-function interestingWindowProperties() {
+  out.push(
+    descriptorText(name)
+  );
 
-  const standardIgnore = new Set([
-    "window",
-    "self",
-    "document",
-    "name",
-    "location",
-    "history",
-    "customElements",
-    "locationbar",
-    "menubar",
-    "personalbar",
-    "scrollbars",
-    "statusbar",
-    "toolbar",
-    "status",
-    "closed",
-    "frames",
-    "length",
-    "top",
-    "opener",
-    "parent",
-    "frameElement",
-    "navigator",
-    "origin",
-    "external",
-    "screen",
-    "innerWidth",
-    "innerHeight",
-    "scrollX",
-    "scrollY"
-  ]);
-
-  let props = [];
 
   try {
 
-    props =
-      Object.getOwnPropertyNames(window)
-      .filter(
-        p => !standardIgnore.has(p)
-      )
-      .sort();
+    out.push(
+      "Object.prototype.toString: " +
+      Object.prototype.toString.call(obj)
+    );
+
+  } catch (e) {}
+
+
+  try {
+
+    out.push(
+      "Function.prototype.toString:\n" +
+      Function.prototype.toString.call(obj)
+    );
 
   } catch (e) {
 
-    return "Unable to enumerate window properties.";
+    out.push(
+      "Function.toString failed: " +
+      e.name +
+      ": " +
+      e.message
+    );
+
   }
 
 
-  const interestingWords = [
-    "android",
-    "native",
-    "bridge",
-    "tencent",
-    "deepal",
-    "changan",
-    "car",
-    "vehicle",
-    "webview",
-    "app",
-    "host",
-    "shell"
-  ];
+  try {
 
+    const own =
+      Object.getOwnPropertyNames(obj);
 
-  const highlighted = [];
-  const others = [];
+    out.push(
+      "own properties: " +
+      own.join(", ")
+    );
 
+  } catch (e) {
 
-  for (const prop of props) {
+    out.push(
+      "own properties unavailable: " +
+      e.name
+    );
 
-    const lower =
-      prop.toLowerCase();
-
-    const entry =
-      prop +
-      " = " +
-      safeValue(window[prop]);
-
-
-    if (
-      interestingWords.some(
-        word =>
-          lower.includes(word)
-      )
-    ) {
-
-      highlighted.push(entry);
-
-    } else {
-
-      others.push(entry);
-    }
   }
 
 
-  let output = "";
+  try {
 
-  output +=
-    "Potentially interesting:\n";
+    const proto =
+      Object.getPrototypeOf(obj);
 
-  if (highlighted.length) {
+    out.push(
+      "prototype: " +
+      Object.prototype.toString.call(proto)
+    );
 
-    output +=
-      highlighted.join("\n");
+  } catch (e) {
+
+    out.push(
+      "prototype unavailable: " +
+      e.name
+    );
+
+  }
+
+
+  return out.join("\n");
+}
+
+
+function introspectTargets() {
+
+  const blocks = [];
+
+  for (const name of targets) {
+
+    blocks.push(
+      inspectFunction(name)
+    );
+
+  }
+
+  return blocks.join("\n\n");
+}
+
+
+function captureInitialGlobals() {
+
+  try {
+
+    initialGlobals =
+      new Set(
+        Object.getOwnPropertyNames(window)
+      );
+
+  } catch (e) {
+
+    initialGlobals =
+      new Set();
+
+  }
+}
+
+
+function delayedCheck(label) {
+
+  const out = [];
+
+  out.push(
+    "=== " + label + " ==="
+  );
+
+
+  let current = [];
+
+  try {
+
+    current =
+      Object.getOwnPropertyNames(window);
+
+  } catch (e) {
+
+    out.push(
+      "Cannot enumerate window."
+    );
+
+    return out.join("\n");
+
+  }
+
+
+  const added =
+    current.filter(
+      name =>
+        !initialGlobals.has(name)
+    );
+
+
+  if (added.length === 0) {
+
+    out.push(
+      "No new global properties."
+    );
 
   } else {
 
-    output +=
-      "(none detected)";
+    out.push(
+      "New global properties:"
+    );
+
+    for (const name of added) {
+
+      let valueType =
+        "unknown";
+
+      try {
+
+        valueType =
+          typeof window[name];
+
+      } catch (e) {}
+
+
+      out.push(
+        "  " +
+        name +
+        " [type=" +
+        valueType +
+        "]"
+      );
+
+    }
+
   }
 
 
-  output +=
-    "\n\nAll enumerable own window properties:\n";
+  const suspiciousNow =
+    findSuspiciousGlobals();
 
-  output +=
-    others.join("\n");
 
-  return output;
+  out.push("");
+  out.push(
+    "Suspicious globals currently present:"
+  );
+
+  if (suspiciousNow.length) {
+
+    out.push(
+      suspiciousNow.join("\n")
+    );
+
+  } else {
+
+    out.push("(none)");
+
+  }
+
+
+  return out.join("\n");
 }
 
 
-function navigatorInfo() {
+function updateFullReport() {
 
-  let props = [];
+  finalReport =
+    "=== S05 WEBVIEW INSPECTOR v2 ===\n\n" +
 
-  try {
+    "=== ENVIRONMENT ===\n" +
+    document.getElementById(
+      "environment"
+    ).textContent +
 
-    props =
-      Object.getOwnPropertyNames(
-        Object.getPrototypeOf(navigator)
-      ).sort();
+    "\n\n=== DRM ===\n" +
+    document.getElementById(
+      "drm"
+    ).textContent +
 
-  } catch (e) {
+    "\n\n=== SUSPICIOUS GLOBALS ===\n" +
+    document.getElementById(
+      "suspicious"
+    ).textContent +
 
-    return "Unable to enumerate navigator.";
-  }
+    "\n\n=== FUNCTION INTROSPECTION ===\n" +
+    document.getElementById(
+      "introspection"
+    ).textContent +
 
-
-  const lines = [];
-
-  for (const prop of props) {
-
-    if (prop === "constructor") {
-      continue;
-    }
-
-    try {
-
-      lines.push(
-        prop +
-        " = " +
-        safeValue(navigator[prop])
-      );
-
-    } catch (e) {
-
-      lines.push(
-        prop +
-        " = [access denied]"
-      );
-    }
-  }
-
-  return lines.join("\n");
-}
+    "\n\n=== DELAYED MONITOR ===\n" +
+    document.getElementById(
+      "delayed"
+    ).textContent;
 
 
-function mediaSecurityInfo() {
-
-  const lines = [];
-
-  lines.push(
-    "Secure context: " +
-    yesno(window.isSecureContext)
-  );
-
-  lines.push(
-    "HTTPS: " +
-    yesno(location.protocol === "https:")
-  );
-
-  lines.push(
-    "MSE: " +
-    yesno(typeof MediaSource !== "undefined")
-  );
-
-  lines.push(
-    "EME: " +
-    yesno(
-      typeof navigator.requestMediaKeySystemAccess ===
-      "function"
-    )
-  );
-
-  lines.push(
-    "MediaCapabilities: " +
-    yesno("mediaCapabilities" in navigator)
-  );
-
-  lines.push(
-    "HDCP policy query: " +
-    yesno(
-      typeof MediaKeys !== "undefined" &&
-      MediaKeys.prototype &&
-      typeof MediaKeys.prototype.getStatusForPolicy ===
-      "function"
-    )
-  );
-
-  lines.push(
-    "Picture-in-Picture enabled: " +
-    String(document.pictureInPictureEnabled)
-  );
-
-  return lines.join("\n");
+  document.getElementById(
+    "fullreport"
+  ).textContent =
+    finalReport;
 }
 
 
 async function runAll() {
 
-  document.getElementById("basic").textContent =
-    basicInfo();
+  document.getElementById(
+    "environment"
+  ).textContent =
+    getEnvironment();
 
-  document.getElementById("apis").textContent =
-    apiInfo();
 
-  document.getElementById("bridges").textContent =
-    bridgeInfo();
+  const suspicious =
+    findSuspiciousGlobals();
 
-  document.getElementById("windowprops").textContent =
-    interestingWindowProperties();
 
-  document.getElementById("navigatorprops").textContent =
-    navigatorInfo();
+  document.getElementById(
+    "suspicious"
+  ).textContent =
+    suspicious.length
+      ? suspicious.join("\n")
+      : "(none detected)";
 
-  document.getElementById("media").textContent =
-    mediaSecurityInfo();
 
-  document.getElementById("drm").textContent =
-    "Testing DRM...";
+  document.getElementById(
+    "introspection"
+  ).textContent =
+    introspectTargets();
+
+
+  document.getElementById(
+    "drm"
+  ).textContent =
+    "Testing...";
 
 
   const drm =
-    await drmInfo();
+    await getDRM();
 
-  document.getElementById("drm").textContent =
+
+  document.getElementById(
+    "drm"
+  ).textContent =
     drm;
 
 
-  finalReport =
-    "=== S05 WEBVIEW INSPECTOR ===\n\n" +
-
-    "=== BROWSER / PLATFORM ===\n" +
-    document.getElementById("basic").textContent +
-
-    "\n\n=== IMPORTANT APIs ===\n" +
-    document.getElementById("apis").textContent +
-
-    "\n\n=== DRM / EME ===\n" +
-    drm +
-
-    "\n\n=== POSSIBLE NATIVE BRIDGES ===\n" +
-    document.getElementById("bridges").textContent +
-
-    "\n\n=== WINDOW PROPERTIES ===\n" +
-    document.getElementById("windowprops").textContent +
-
-    "\n\n=== NAVIGATOR PROPERTIES ===\n" +
-    document.getElementById("navigatorprops").textContent +
-
-    "\n\n=== MEDIA / SECURITY ===\n" +
-    document.getElementById("media").textContent;
+  document.getElementById(
+    "delayed"
+  ).textContent =
+    "Waiting for delayed checks...";
 
 
-  document.getElementById("fullreport").textContent =
-    finalReport;
+  updateFullReport();
+
+
+  setTimeout(
+    function () {
+
+      document.getElementById(
+        "delayed"
+      ).textContent =
+        delayedCheck("After 1 second");
+
+      updateFullReport();
+
+    },
+    1000
+  );
+
+
+  setTimeout(
+    function () {
+
+      document.getElementById(
+        "delayed"
+      ).textContent +=
+        "\n\n" +
+        delayedCheck("After 3 seconds");
+
+      updateFullReport();
+
+    },
+    3000
+  );
+
+
+  setTimeout(
+    function () {
+
+      document.getElementById(
+        "delayed"
+      ).textContent +=
+        "\n\n" +
+        delayedCheck("After 8 seconds");
+
+      updateFullReport();
+
+    },
+    8000
+  );
+
 }
 
 
 async function copyReport() {
 
   const status =
-    document.getElementById("copyStatus");
+    document.getElementById(
+      "copyStatus"
+    );
+
 
   try {
 
@@ -845,20 +910,26 @@ async function copyReport() {
     );
 
     status.innerHTML =
-      '<p class="good">Report copied to clipboard.</p>';
+      '<p class="good">' +
+      'Report copied to clipboard.' +
+      '</p>';
 
   } catch (e) {
 
     status.innerHTML =
-      '<p class="bad">Clipboard copy failed: ' +
+      '<p class="bad">' +
+      'Clipboard copy failed: ' +
       e.name +
       ': ' +
       e.message +
       '</p>';
+
   }
+
 }
 
 
+captureInitialGlobals();
 runAll();
 
 </script>
