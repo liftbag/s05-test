@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S05 Android Intent Test</title>
+
+<style>
+body {
+  font-family: sans-serif;
+  background: #111;
+  color: white;
+  padding: 40px;
+}
+a {
+  display: block;
+  margin: 25px 0;
+  padding: 30px;
+  background: #333;
+  color: white;
+  text-decoration: none;
+  font-size: 28px;
+  border: 2px solid #777;
+  border-radius: 12px;
+}
+small {
+  color: #aaa;
+}
+</style>
+</head>
+
+<body>
+
+<h1>S05 Android Intent Test</h1>
+<p>Test only - no settings are changed automatically.</p>
+
+<a href="intent://com.android.settings/#Intent;scheme=android-app;end">
+1. Open Android Settings
+</a>
+
+<a href="intent:#Intent;action=android.settings.SETTINGS;end">
+2. ACTION_SETTINGS
+</a>
+
+<a href="intent:#Intent;action=android.settings.WIFI_SETTINGS;end">
+3. Wi-Fi Settings
+</a>
+
+<a href="intent:#Intent;action=android.settings.APPLICATION_DEVELOPMENT_SETTINGS;end">
+4. Developer Options
+</a>
+
+<a href="intent:#Intent;action=android.settings.WEBVIEW_SETTINGS;end">
+5. WebView Settings
+</a>
+
+<hr>
+
+<small>
+S05 WebView intent diagnostic page
+</small>
+
+</body>
+</html>
