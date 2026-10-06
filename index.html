@@ -1,114 +1,867 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>S05 Android Intent Test</title>
+<title>S05 WebView Inspector</title>
 
 <style>
 body {
-  font-family: sans-serif;
-  background: #111;
-  color: white;
-  padding: 40px;
+  font-family: monospace;
+  background: #101010;
+  color: #eeeeee;
+  padding: 30px;
+  line-height: 1.45;
 }
 
 h1 {
+  font-family: sans-serif;
   font-size: 36px;
+  margin-bottom: 5px;
 }
 
 h2 {
-  margin-top: 50px;
-  font-size: 28px;
+  font-family: sans-serif;
+  font-size: 25px;
+  margin-top: 40px;
+  border-bottom: 1px solid #666;
+  padding-bottom: 8px;
 }
 
 p {
+  font-family: sans-serif;
+  font-size: 18px;
+}
+
+button {
+  margin: 10px 10px 10px 0;
+  padding: 18px 25px;
+  background: #333;
+  color: white;
+  border: 2px solid #777;
+  border-radius: 10px;
   font-size: 20px;
 }
 
-a {
-  display: block;
-  margin: 25px 0;
-  padding: 30px;
-  background: #333;
-  color: white;
-  text-decoration: none;
-  font-size: 28px;
-  border: 2px solid #777;
-  border-radius: 12px;
+.good {
+  color: #66ff88;
 }
 
-hr {
-  margin-top: 50px;
-  border: 0;
-  border-top: 1px solid #777;
+.bad {
+  color: #ff7777;
+}
+
+.warn {
+  color: #ffd966;
+}
+
+.box {
+  background: #1b1b1b;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+td {
+  border-bottom: 1px solid #444;
+  padding: 8px;
+  vertical-align: top;
+}
+
+td:first-child {
+  width: 32%;
+  color: #bbbbbb;
 }
 
 small {
-  color: #aaa;
+  color: #999;
 }
 </style>
 </head>
 
 <body>
 
-<h1>S05 Android Intent Test</h1>
+<h1>S05 WebView Inspector</h1>
 
-<p>Test only - no settings are changed automatically.</p>
+<p>
+Read-only diagnostic page for Deepal S05 / Tencent Way WebView.
+No Android or vehicle settings are changed.
+</p>
 
+<button onclick="runAll()">Run / Refresh Tests</button>
+<button onclick="copyReport()">Copy Full Report</button>
 
-<h2>Android Intent Tests</h2>
-
-<a href="intent://com.android.settings/#Intent;scheme=android-app;end">
-1. Open Android Settings
-</a>
-
-<a href="intent:#Intent;action=android.settings.SETTINGS;end">
-2. ACTION_SETTINGS
-</a>
-
-<a href="intent:#Intent;action=android.settings.WIFI_SETTINGS;end">
-3. Wi-Fi Settings
-</a>
-
-<a href="intent:#Intent;action=android.settings.APPLICATION_DEVELOPMENT_SETTINGS;end">
-4. Developer Options
-</a>
-
-<a href="intent:#Intent;action=android.settings.WEBVIEW_SETTINGS;end">
-5. WebView Settings
-</a>
+<div id="copyStatus"></div>
 
 
-<h2>Alternative URI Tests</h2>
+<h2>1. Browser / Platform</h2>
+<div id="basic" class="box">Running...</div>
 
-<a href="android-app://com.android.settings/">
-6. android-app:// Settings
-</a>
 
-<a href="market://details?id=com.android.settings">
-7. market:// Settings
-</a>
+<h2>2. Important APIs</h2>
+<div id="apis" class="box">Running...</div>
 
-<a href="tel:123">
-8. tel: test
-</a>
 
-<a href="mailto:test@example.com">
-9. mailto: test
-</a>
+<h2>3. DRM / EME</h2>
+<div id="drm" class="box">Running...</div>
 
-<a href="geo:0,0?q=test">
-10. geo: test
-</a>
+
+<h2>4. Possible Native / Tencent Bridges</h2>
+
+<p>
+This section looks for unusual JavaScript objects exposed by the host
+application to the WebView.
+</p>
+
+<div id="bridges" class="box">Running...</div>
+
+
+<h2>5. Window Properties</h2>
+
+<p>
+Non-standard or potentially interesting properties found on
+<code>window</code>.
+</p>
+
+<div id="windowprops" class="box">Running...</div>
+
+
+<h2>6. Navigator Properties</h2>
+<div id="navigatorprops" class="box">Running...</div>
+
+
+<h2>7. Media / Security Context</h2>
+<div id="media" class="box">Running...</div>
+
+
+<h2>8. Full Diagnostic Report</h2>
+<div id="fullreport" class="box">Running...</div>
 
 
 <hr>
 
-<small>
-S05 WebView diagnostic page
-</small>
+<small>S05 WebView Inspector v1.0</small>
+
+
+<script>
+
+let finalReport = "";
+
+function yesno(value) {
+  return value ? "YES" : "NO";
+}
+
+function safeValue(value) {
+  try {
+    if (typeof value === "function") {
+      return "[function]";
+    }
+
+    if (typeof value === "object" && value !== null) {
+      return Object.prototype.toString.call(value);
+    }
+
+    return String(value);
+  } catch (e) {
+    return "[unreadable]";
+  }
+}
+
+
+function basicInfo() {
+
+  const lines = [];
+
+  lines.push("userAgent: " + navigator.userAgent);
+  lines.push("platform: " + navigator.platform);
+  lines.push("vendor: " + navigator.vendor);
+  lines.push("language: " + navigator.language);
+  lines.push("languages: " + navigator.languages);
+  lines.push("hardwareConcurrency: " + navigator.hardwareConcurrency);
+  lines.push("deviceMemory: " + navigator.deviceMemory);
+  lines.push("maxTouchPoints: " + navigator.maxTouchPoints);
+  lines.push("cookieEnabled: " + navigator.cookieEnabled);
+  lines.push("onLine: " + navigator.onLine);
+
+  lines.push("");
+  lines.push("screen: " +
+    screen.width + " x " + screen.height);
+
+  lines.push("viewport: " +
+    window.innerWidth + " x " + window.innerHeight);
+
+  lines.push("devicePixelRatio: " +
+    window.devicePixelRatio);
+
+  lines.push("");
+  lines.push("location.protocol: " + location.protocol);
+  lines.push("location.origin: " + location.origin);
+  lines.push("isSecureContext: " + window.isSecureContext);
+
+  return lines.join("\n");
+}
+
+
+function apiInfo() {
+
+  const tests = {
+
+    "MediaSource":
+      typeof window.MediaSource !== "undefined",
+
+    "Encrypted Media Extensions":
+      typeof navigator.requestMediaKeySystemAccess === "function",
+
+    "MediaKeys":
+      typeof window.MediaKeys !== "undefined",
+
+    "MediaKeySession":
+      typeof window.MediaKeySession !== "undefined",
+
+    "MediaCapabilities":
+      typeof navigator.mediaCapabilities !== "undefined",
+
+    "WebCodecs VideoDecoder":
+      typeof window.VideoDecoder !== "undefined",
+
+    "WebCodecs AudioDecoder":
+      typeof window.AudioDecoder !== "undefined",
+
+    "WebAssembly":
+      typeof window.WebAssembly !== "undefined",
+
+    "WebSocket":
+      typeof window.WebSocket !== "undefined",
+
+    "WebRTC":
+      typeof window.RTCPeerConnection !== "undefined",
+
+    "ServiceWorker":
+      "serviceWorker" in navigator,
+
+    "Geolocation":
+      "geolocation" in navigator,
+
+    "Bluetooth":
+      "bluetooth" in navigator,
+
+    "USB":
+      "usb" in navigator,
+
+    "Serial":
+      "serial" in navigator,
+
+    "HID":
+      "hid" in navigator,
+
+    "Clipboard":
+      "clipboard" in navigator,
+
+    "Picture-in-Picture":
+      "pictureInPictureEnabled" in document,
+
+    "Fullscreen":
+      typeof document.documentElement.requestFullscreen === "function"
+
+  };
+
+  let out = "";
+
+  for (const key in tests) {
+    out += key + ": " + yesno(tests[key]) + "\n";
+  }
+
+  return out;
+}
+
+
+async function drmInfo() {
+
+  const lines = [];
+
+  lines.push(
+    "requestMediaKeySystemAccess: " +
+    yesno(typeof navigator.requestMediaKeySystemAccess === "function")
+  );
+
+  if (typeof navigator.requestMediaKeySystemAccess !== "function") {
+    return lines.join("\n");
+  }
+
+  const clearConfig = [{
+    initDataTypes: ["cenc"],
+    videoCapabilities: [{
+      contentType: 'video/mp4; codecs="avc1.42E01E"'
+    }]
+  }];
+
+  try {
+
+    await navigator.requestMediaKeySystemAccess(
+      "org.w3.clearkey",
+      clearConfig
+    );
+
+    lines.push("ClearKey: AVAILABLE");
+
+  } catch (e) {
+
+    lines.push(
+      "ClearKey: NOT AVAILABLE - " +
+      e.name + ": " + e.message
+    );
+  }
+
+
+  const widevineTests = [
+
+    {
+      name: "Basic / unspecified robustness",
+      robustness: ""
+    },
+
+    {
+      name: "SW_SECURE_CRYPTO",
+      robustness: "SW_SECURE_CRYPTO"
+    },
+
+    {
+      name: "SW_SECURE_DECODE",
+      robustness: "SW_SECURE_DECODE"
+    },
+
+    {
+      name: "HW_SECURE_CRYPTO",
+      robustness: "HW_SECURE_CRYPTO"
+    },
+
+    {
+      name: "HW_SECURE_DECODE",
+      robustness: "HW_SECURE_DECODE"
+    },
+
+    {
+      name: "HW_SECURE_ALL",
+      robustness: "HW_SECURE_ALL"
+    }
+
+  ];
+
+
+  for (const test of widevineTests) {
+
+    const capability = {
+      contentType: 'video/mp4; codecs="avc1.42E01E"'
+    };
+
+    if (test.robustness) {
+      capability.robustness = test.robustness;
+    }
+
+    const config = [{
+      initDataTypes: ["cenc"],
+
+      distinctiveIdentifier: "optional",
+      persistentState: "optional",
+
+      sessionTypes: ["temporary"],
+
+      videoCapabilities: [capability]
+    }];
+
+
+    try {
+
+      const access =
+        await navigator.requestMediaKeySystemAccess(
+          "com.widevine.alpha",
+          config
+        );
+
+      lines.push(
+        "Widevine " +
+        test.name +
+        ": AVAILABLE"
+      );
+
+      try {
+
+        const cfg = access.getConfiguration();
+
+        lines.push(
+          "  configuration: " +
+          JSON.stringify(cfg)
+        );
+
+      } catch (e) {}
+
+    } catch (e) {
+
+      lines.push(
+        "Widevine " +
+        test.name +
+        ": NOT AVAILABLE"
+      );
+
+      lines.push(
+        "  error: " +
+        e.name +
+        ": " +
+        e.message
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
+
+function bridgeInfo() {
+
+  const suspiciousNames = [
+    "Android",
+    "android",
+    "Native",
+    "native",
+    "NativeBridge",
+    "WebViewBridge",
+    "JSBridge",
+    "JsBridge",
+    "JavascriptInterface",
+    "Tencent",
+    "tencent",
+    "QQ",
+    "QWebChannel",
+    "webkit",
+    "Deepal",
+    "deepal",
+    "Changan",
+    "changan",
+    "Car",
+    "car",
+    "Vehicle",
+    "vehicle"
+  ];
+
+  const found = [];
+
+  for (const name of suspiciousNames) {
+
+    try {
+
+      if (name in window) {
+
+        let description =
+          name + " = " +
+          safeValue(window[name]);
+
+        try {
+
+          if (
+            typeof window[name] === "object" &&
+            window[name] !== null
+          ) {
+
+            const props =
+              Object.getOwnPropertyNames(
+                window[name]
+              );
+
+            description +=
+              "\n  properties: " +
+              props.join(", ");
+          }
+
+        } catch (e) {}
+
+        found.push(description);
+      }
+
+    } catch (e) {}
+  }
+
+
+  /*
+     Look for unusual window properties containing
+     potentially relevant words.
+  */
+
+  const keywords = [
+    "android",
+    "native",
+    "bridge",
+    "tencent",
+    "deepal",
+    "changan",
+    "vehicle",
+    "car",
+    "webview"
+  ];
+
+  try {
+
+    const props =
+      Object.getOwnPropertyNames(window);
+
+    for (const prop of props) {
+
+      const lower =
+        prop.toLowerCase();
+
+      if (
+        keywords.some(
+          keyword =>
+            lower.includes(keyword)
+        )
+      ) {
+
+        const line =
+          prop +
+          " = " +
+          safeValue(window[prop]);
+
+        if (!found.includes(line)) {
+          found.push(line);
+        }
+      }
+    }
+
+  } catch (e) {}
+
+
+  if (found.length === 0) {
+
+    return (
+      "No obvious Android / Tencent / Deepal " +
+      "JavaScript bridge detected."
+    );
+  }
+
+  return found.join("\n\n");
+}
+
+
+function interestingWindowProperties() {
+
+  const standardIgnore = new Set([
+    "window",
+    "self",
+    "document",
+    "name",
+    "location",
+    "history",
+    "customElements",
+    "locationbar",
+    "menubar",
+    "personalbar",
+    "scrollbars",
+    "statusbar",
+    "toolbar",
+    "status",
+    "closed",
+    "frames",
+    "length",
+    "top",
+    "opener",
+    "parent",
+    "frameElement",
+    "navigator",
+    "origin",
+    "external",
+    "screen",
+    "innerWidth",
+    "innerHeight",
+    "scrollX",
+    "scrollY"
+  ]);
+
+  let props = [];
+
+  try {
+
+    props =
+      Object.getOwnPropertyNames(window)
+      .filter(
+        p => !standardIgnore.has(p)
+      )
+      .sort();
+
+  } catch (e) {
+
+    return "Unable to enumerate window properties.";
+  }
+
+
+  const interestingWords = [
+    "android",
+    "native",
+    "bridge",
+    "tencent",
+    "deepal",
+    "changan",
+    "car",
+    "vehicle",
+    "webview",
+    "app",
+    "host",
+    "shell"
+  ];
+
+
+  const highlighted = [];
+  const others = [];
+
+
+  for (const prop of props) {
+
+    const lower =
+      prop.toLowerCase();
+
+    const entry =
+      prop +
+      " = " +
+      safeValue(window[prop]);
+
+
+    if (
+      interestingWords.some(
+        word =>
+          lower.includes(word)
+      )
+    ) {
+
+      highlighted.push(entry);
+
+    } else {
+
+      others.push(entry);
+    }
+  }
+
+
+  let output = "";
+
+  output +=
+    "Potentially interesting:\n";
+
+  if (highlighted.length) {
+
+    output +=
+      highlighted.join("\n");
+
+  } else {
+
+    output +=
+      "(none detected)";
+  }
+
+
+  output +=
+    "\n\nAll enumerable own window properties:\n";
+
+  output +=
+    others.join("\n");
+
+  return output;
+}
+
+
+function navigatorInfo() {
+
+  let props = [];
+
+  try {
+
+    props =
+      Object.getOwnPropertyNames(
+        Object.getPrototypeOf(navigator)
+      ).sort();
+
+  } catch (e) {
+
+    return "Unable to enumerate navigator.";
+  }
+
+
+  const lines = [];
+
+  for (const prop of props) {
+
+    if (prop === "constructor") {
+      continue;
+    }
+
+    try {
+
+      lines.push(
+        prop +
+        " = " +
+        safeValue(navigator[prop])
+      );
+
+    } catch (e) {
+
+      lines.push(
+        prop +
+        " = [access denied]"
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
+
+function mediaSecurityInfo() {
+
+  const lines = [];
+
+  lines.push(
+    "Secure context: " +
+    yesno(window.isSecureContext)
+  );
+
+  lines.push(
+    "HTTPS: " +
+    yesno(location.protocol === "https:")
+  );
+
+  lines.push(
+    "MSE: " +
+    yesno(typeof MediaSource !== "undefined")
+  );
+
+  lines.push(
+    "EME: " +
+    yesno(
+      typeof navigator.requestMediaKeySystemAccess ===
+      "function"
+    )
+  );
+
+  lines.push(
+    "MediaCapabilities: " +
+    yesno("mediaCapabilities" in navigator)
+  );
+
+  lines.push(
+    "HDCP policy query: " +
+    yesno(
+      typeof MediaKeys !== "undefined" &&
+      MediaKeys.prototype &&
+      typeof MediaKeys.prototype.getStatusForPolicy ===
+      "function"
+    )
+  );
+
+  lines.push(
+    "Picture-in-Picture enabled: " +
+    String(document.pictureInPictureEnabled)
+  );
+
+  return lines.join("\n");
+}
+
+
+async function runAll() {
+
+  document.getElementById("basic").textContent =
+    basicInfo();
+
+  document.getElementById("apis").textContent =
+    apiInfo();
+
+  document.getElementById("bridges").textContent =
+    bridgeInfo();
+
+  document.getElementById("windowprops").textContent =
+    interestingWindowProperties();
+
+  document.getElementById("navigatorprops").textContent =
+    navigatorInfo();
+
+  document.getElementById("media").textContent =
+    mediaSecurityInfo();
+
+  document.getElementById("drm").textContent =
+    "Testing DRM...";
+
+
+  const drm =
+    await drmInfo();
+
+  document.getElementById("drm").textContent =
+    drm;
+
+
+  finalReport =
+    "=== S05 WEBVIEW INSPECTOR ===\n\n" +
+
+    "=== BROWSER / PLATFORM ===\n" +
+    document.getElementById("basic").textContent +
+
+    "\n\n=== IMPORTANT APIs ===\n" +
+    document.getElementById("apis").textContent +
+
+    "\n\n=== DRM / EME ===\n" +
+    drm +
+
+    "\n\n=== POSSIBLE NATIVE BRIDGES ===\n" +
+    document.getElementById("bridges").textContent +
+
+    "\n\n=== WINDOW PROPERTIES ===\n" +
+    document.getElementById("windowprops").textContent +
+
+    "\n\n=== NAVIGATOR PROPERTIES ===\n" +
+    document.getElementById("navigatorprops").textContent +
+
+    "\n\n=== MEDIA / SECURITY ===\n" +
+    document.getElementById("media").textContent;
+
+
+  document.getElementById("fullreport").textContent =
+    finalReport;
+}
+
+
+async function copyReport() {
+
+  const status =
+    document.getElementById("copyStatus");
+
+  try {
+
+    await navigator.clipboard.writeText(
+      finalReport
+    );
+
+    status.innerHTML =
+      '<p class="good">Report copied to clipboard.</p>';
+
+  } catch (e) {
+
+    status.innerHTML =
+      '<p class="bad">Clipboard copy failed: ' +
+      e.name +
+      ': ' +
+      e.message +
+      '</p>';
+  }
+}
+
+
+runAll();
+
+</script>
 
 </body>
 </html>
