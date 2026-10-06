@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <title>S05 Android Intent Test</title>
 
 <style>
@@ -12,6 +13,20 @@ body {
   color: white;
   padding: 40px;
 }
+
+h1 {
+  font-size: 36px;
+}
+
+h2 {
+  margin-top: 50px;
+  font-size: 28px;
+}
+
+p {
+  font-size: 20px;
+}
+
 a {
   display: block;
   margin: 25px 0;
@@ -23,6 +38,13 @@ a {
   border: 2px solid #777;
   border-radius: 12px;
 }
+
+hr {
+  margin-top: 50px;
+  border: 0;
+  border-top: 1px solid #777;
+}
+
 small {
   color: #aaa;
 }
@@ -32,7 +54,11 @@ small {
 <body>
 
 <h1>S05 Android Intent Test</h1>
+
 <p>Test only - no settings are changed automatically.</p>
+
+
+<h2>Android Intent Tests</h2>
 
 <a href="intent://com.android.settings/#Intent;scheme=android-app;end">
 1. Open Android Settings
@@ -54,10 +80,34 @@ small {
 5. WebView Settings
 </a>
 
+
+<h2>Alternative URI Tests</h2>
+
+<a href="android-app://com.android.settings/">
+6. android-app:// Settings
+</a>
+
+<a href="market://details?id=com.android.settings">
+7. market:// Settings
+</a>
+
+<a href="tel:123">
+8. tel: test
+</a>
+
+<a href="mailto:test@example.com">
+9. mailto: test
+</a>
+
+<a href="geo:0,0?q=test">
+10. geo: test
+</a>
+
+
 <hr>
 
 <small>
-S05 WebView intent diagnostic page
+S05 WebView diagnostic page
 </small>
 
 </body>
